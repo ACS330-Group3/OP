@@ -33,57 +33,66 @@ class PosOrien:
     def __repr__(self):
         return "Pos => X: %.3f,\t Y: %.3f,\t Z: %.3f\n" \
                "Rot => A: %.3f,\t B: %.3f,\t G: %.3f" \
-               % (self.x, self.y, self.z, 
+               % (self.x, self.y, self.z,
                   self.alpha, self.beta, self.gamma)
 
 
-def connect(port=19999):
+def connect(_port=19999):
     vrep.simxFinish(-1)
-    client_id = vrep.simxStart('127.0.0.1', 19999, True, True, 5000, 5)
-    if client_id != -1:
-        print("Connection on port: {}, successful - ID: {}".format(port, client_id))
+    _client_id = vrep.simxStart('127.0.0.1', 19999, True, True, 5000, 5)
+    if _client_id != -1:
+        print("Connection on port: {}, successful - ID: {}".format(_port, _client_id))
     else:
-        print("Connection on port: {}, failed".format(port))
-    return client_id
+        print("Connection on port: {}, failed".format(_port))
+    return _client_id
 
 
 def get_handles():
-    handles = BotHandles()
-    err_code, handles.body = vrep.simxGetObjectHandle(clientId, "ME_Platfo2_sub1", vrep.simx_opmode_oneshot_wait)
-    err_code, handles.flM = vrep.simxGetObjectHandle(clientId, "rollingJoint_fl", vrep.simx_opmode_oneshot_wait)
-    err_code, handles.frM = vrep.simxGetObjectHandle(clientId, "rollingJoint_fr", vrep.simx_opmode_oneshot_wait)
-    err_code, handles.rlM = vrep.simxGetObjectHandle(clientId, "rollingJoint_rl", vrep.simx_opmode_oneshot_wait)
-    err_code, handles.rrM = vrep.simxGetObjectHandle(clientId, "rollingJoint_rr", vrep.simx_opmode_oneshot_wait)
-    return handles
+    _handles = BotHandles()
+    err_code, _handles.body = vrep.simxGetObjectHandle(clientId, "ME_Platfo2_sub1", vrep.simx_opmode_oneshot_wait)
+    err_code, _handles.flM = vrep.simxGetObjectHandle(clientId, "rollingJoint_fl", vrep.simx_opmode_oneshot_wait)
+    err_code, _handles.frM = vrep.simxGetObjectHandle(clientId, "rollingJoint_fr", vrep.simx_opmode_oneshot_wait)
+    err_code, _handles.rlM = vrep.simxGetObjectHandle(clientId, "rollingJoint_rl", vrep.simx_opmode_oneshot_wait)
+    err_code, _handles.rrM = vrep.simxGetObjectHandle(clientId, "rollingJoint_rr", vrep.simx_opmode_oneshot_wait)
+    return _handles
 
 
-def set_motors(handles, bearing, spd):
-    speeds = MotorCommand()
+def set_motors(_handles, bearing, spd):
+    _speeds = MotorCommand()
     if bearing == 0:
-        speeds.fl = spd
-        speeds.fr = spd
-        speeds.rl = spd
-        speeds.rr = spd
+        _speeds.fl = spd
+        _speeds.fr = spd
+        _speeds.rl = spd
+        _speeds.rr = spd
     elif bearing == 90:
-        speeds.fl = spd
-        speeds.fr = -spd
-        speeds.rl = -spd
-        speeds.rr = spd
+        _speeds.fl = spd
+        _speeds.fr = -spd
+        _speeds.rl = -spd
+        _speeds.rr = spd
     elif bearing == 180:
-        speeds.fl = -spd
-        speeds.fr = -spd
-        speeds.rl = -spd
-        speeds.rr = -spd
+        _speeds.fl = -spd
+        _speeds.fr = -spd
+        _speeds.rl = -spd
+        _speeds.rr = -spd
     elif bearing == 270:
-        speeds.fl = -spd
-        speeds.fr = spd
-        speeds.rl = spd
-        speeds.rr = -spd
+        _speeds.fl = -spd
+        _speeds.fr = spd
+        _speeds.rl = spd
+        _speeds.rr = -spd
 
-    vrep.simxSetJointTargetVelocity(clientId, handles.flM, speeds.fl, vrep.simx_opmode_oneshot_wait)
-    vrep.simxSetJointTargetVelocity(clientId, handles.frM, speeds.fr, vrep.simx_opmode_oneshot_wait)
-    vrep.simxSetJointTargetVelocity(clientId, handles.rlM, speeds.rl, vrep.simx_opmode_oneshot_wait)
-    vrep.simxSetJointTargetVelocity(clientId, handles.rrM, speeds.rr, vrep.simx_opmode_oneshot_wait)
+    vrep.simxSetJointTargetVelocity(clientId, _handles.flM, _speeds.fl, vrep.simx_opmode_oneshot_wait)
+    vrep.simxSetJointTargetVelocity(clientId, _handles.frM, _speeds.fr, vrep.simx_opmode_oneshot_wait)
+    vrep.simxSetJointTargetVelocity(clientId, _handles.rlM, _speeds.rl, vrep.simx_opmode_oneshot_wait)
+    vrep.simxSetJointTargetVelocity(clientId, _handles.rrM, _speeds.rr, vrep.simx_opmode_oneshot_wait)
+
+
+def get_pos_orien(_handles):
+    _po = PosOrien()
+    err_code, [_po.x, _po.y, _po.z] = vrep.simxGetObjectPosition(clientId, _handles.body, -1,
+                                                                 vrep.simx_opmode_oneshot_wait)
+    err_code, [_po.alpha, _po.beta, _po.gamma] = vrep.simxGetObjectOrientation(clientId, _handles.body, -1,
+                                                                               vrep.simx_opmode_oneshot_wait)
+    return _po
 
 
 if __name__ == "__main__":
@@ -91,10 +100,7 @@ if __name__ == "__main__":
 
     if clientId != -1:
         handles = get_handles()
-        robPO = PosOrien()
-
-        err_code, [robPO.x, robPO.y, robPO.z] = vrep.simxGetObjectPosition(clientId, handles.body, -1, vrep.simx_opmode_oneshot_wait)
-        err_code, [robPO.alpha, robPO.beta, robPO.gamma] = vrep.simxGetObjectOrientation(clientId, handles.body, -1, vrep.simx_opmode_oneshot_wait)
+        robPO = get_pos_orien(handles)
         print(robPO)
 
         speed = 1
