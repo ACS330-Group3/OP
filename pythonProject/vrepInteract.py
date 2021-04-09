@@ -11,6 +11,10 @@ class MotorSpeeds:
         self.rl = 0
         self.rr = 0
 
+    def __repr__(self):
+        return "Speeds =>\t fl: %d,\t fr: %d,\t rl: %d,\t rr: %d\n" \
+               % (self.fl, self.fr, self.rl, self.rr)
+
 
 class BotHandles:
     # Class/Struct of bot handles
@@ -33,8 +37,8 @@ class PosOrien:
         self.gamma = 0
 
     def __repr__(self):
-        return "Pos => X: %.3f,\t Y: %.3f,\t Z: %.3f\n" \
-               "Rot => A: %.3f,\t B: %.3f,\t G: %.3f\n" \
+        return "Pos =>\t X: %.3f,\t Y: %.3f,\t Z: %.3f\n" \
+               "Rot =>\t A: %.3f,\t B: %.3f,\t G: %.3f\n" \
                % (self.x, self.y, self.z,
                   self.alpha, self.beta, self.gamma)
 
@@ -100,10 +104,10 @@ class VrepBot:
         WHEEL_DIAMETER = 0.1
         revPerMeter = 1 / (WHEEL_DIAMETER * np.pi)
 
-        self.speeds.frontLeft = revPerMeter * (xSpd - ySpd - (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
-        self.speeds.frontRight = revPerMeter * (xSpd + ySpd + (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
-        self.speeds.rearLeft = revPerMeter * (xSpd + ySpd - (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
-        self.speeds.rearRight = revPerMeter * (xSpd - ySpd + (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
+        self.speeds.fl = revPerMeter * (xSpd - ySpd - (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
+        self.speeds.fr = revPerMeter * (xSpd + ySpd + (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
+        self.speeds.rl = revPerMeter * (xSpd + ySpd - (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
+        self.speeds.rr = revPerMeter * (xSpd - ySpd + (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
         return self.speeds
 
     def set_motors(self):
@@ -118,18 +122,23 @@ class VrepBot:
         err_code, [self.po.alpha, self.po.beta, self.po.gamma] = vrep.simxGetObjectOrientation(self.clientId, self.handles.body, -1, vrep.simx_opmode_oneshot_wait)
         return self.po
 
+    def stop(self):
+        self.speeds = MotorSpeeds()
+        self.set_motors()
+
 
 if __name__ == "__main__":
     bot = VrepBot()
 
-    speed = 1
-    for bearing in (0, 90, 180, 270):
-        bot.calc_speeds_old(bearing, speed)
+    speed = 0.5
+    for (x, y, w) in zip((speed, 0, -speed, 0), (0, speed, 0, -speed), (speed/10, -speed/10, speed/10, -speed/10)):
+        print(x, y)
+        tmpSpds = bot.calc_speeds(x, y, w)
+        print(tmpSpds)
         bot.set_motors()
-        time.sleep(4)
+        time.sleep(2)
 
-    bot.calc_speeds_old(0, 0)
-    bot.set_motors()
+    bot.stop()
 
     botPO = bot.get_pos_orien()
     print(botPO)
