@@ -6,7 +6,7 @@ def connect(port=19999):
     vrep.simxFinish(-1)
     client_id = vrep.simxStart('127.0.0.1', 19999, True, True, 5000, 5)
     if client_id != -1:
-        print("Connection on port: {}, successful - ID: ".format(port, client_id))
+        print("Connection on port: {}, successful - ID: {}".format(port, client_id))
     else:
         print("Connection on port: {}, failed".format(port))
     return client_id
