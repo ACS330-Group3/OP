@@ -1,8 +1,9 @@
+import sys
 import vrep
 import time
+import numpy as np
 
-
-class MotorCommand:
+class MotorSpeeds:
     # Class/Struct of motor speeds
     def __init__(self):
         self.fl = 0
@@ -22,6 +23,7 @@ class BotHandles:
 
 
 class PosOrien:
+    # Position Orientation Class/Struct
     def __init__(self):
         self.x = 0
         self.y = 0
@@ -32,84 +34,105 @@ class PosOrien:
 
     def __repr__(self):
         return "Pos => X: %.3f,\t Y: %.3f,\t Z: %.3f\n" \
-               "Rot => A: %.3f,\t B: %.3f,\t G: %.3f" \
+               "Rot => A: %.3f,\t B: %.3f,\t G: %.3f\n" \
                % (self.x, self.y, self.z,
                   self.alpha, self.beta, self.gamma)
 
 
-def connect(_port=19999):
-    vrep.simxFinish(-1)
-    _client_id = vrep.simxStart('127.0.0.1', 19999, True, True, 5000, 5)
-    if _client_id != -1:
-        print("Connection on port: {}, successful - ID: {}".format(_port, _client_id))
-    else:
-        print("Connection on port: {}, failed".format(_port))
-    return _client_id
+class VrepBot:
+    def __init__(self):
+        self.clientId = -1
+        self.handles = BotHandles()
+        self.speeds = MotorSpeeds()
+        self.po = PosOrien()
+        self.connect()
+        self.get_handles()
+        self.get_pos_orien()
 
+    def connect(self, _port=19999):
+        vrep.simxFinish(-1)
+        self.clientId = vrep.simxStart('127.0.0.1', 19999, True, True, 5000, 5)
+        if self.clientId != -1:
+            print("Connection on port: {}, successful - ID: {}".format(_port, self.clientId))
+        else:
+            print("Connection on port: {}, failed".format(_port))
+            inp = raw_input("Press 'q' to exit, press enter to continue\n")
+            if inp == 'q':
+                print("Exiting")
+                sys.exit()
+            print("Continuing")
 
-def get_handles():
-    _handles = BotHandles()
-    err_code, _handles.body = vrep.simxGetObjectHandle(clientId, "ME_Platfo2_sub1", vrep.simx_opmode_oneshot_wait)
-    err_code, _handles.flM = vrep.simxGetObjectHandle(clientId, "rollingJoint_fl", vrep.simx_opmode_oneshot_wait)
-    err_code, _handles.frM = vrep.simxGetObjectHandle(clientId, "rollingJoint_fr", vrep.simx_opmode_oneshot_wait)
-    err_code, _handles.rlM = vrep.simxGetObjectHandle(clientId, "rollingJoint_rl", vrep.simx_opmode_oneshot_wait)
-    err_code, _handles.rrM = vrep.simxGetObjectHandle(clientId, "rollingJoint_rr", vrep.simx_opmode_oneshot_wait)
-    return _handles
+    def get_handles(self):
+        err_code, self.handles.body = vrep.simxGetObjectHandle(self.clientId, "ME_Platfo2_sub1", vrep.simx_opmode_oneshot_wait)
+        err_code, self.handles.flM = vrep.simxGetObjectHandle(self.clientId, "rollingJoint_fl", vrep.simx_opmode_oneshot_wait)
+        err_code, self.handles.frM = vrep.simxGetObjectHandle(self.clientId, "rollingJoint_fr", vrep.simx_opmode_oneshot_wait)
+        err_code, self.handles.rlM = vrep.simxGetObjectHandle(self.clientId, "rollingJoint_rl", vrep.simx_opmode_oneshot_wait)
+        err_code, self.handles.rrM = vrep.simxGetObjectHandle(self.clientId, "rollingJoint_rr", vrep.simx_opmode_oneshot_wait)
+        return self.handles
 
+    def calc_speeds_old(self, bearing, spd):
+        _speeds = MotorSpeeds()
+        if bearing == 0:
+            self.speeds.fl = spd
+            self.speeds.fr = spd
+            self.speeds.rl = spd
+            self.speeds.rr = spd
+        elif bearing == 90:
+            self.speeds.fl = spd
+            self.speeds.fr = -spd
+            self.speeds.rl = -spd
+            self.speeds.rr = spd
+        elif bearing == 180:
+            self.speeds.fl = -spd
+            self.speeds.fr = -spd
+            self.speeds.rl = -spd
+            self.speeds.rr = -spd
+        elif bearing == 270:
+            self.speeds.fl = -spd
+            self.speeds.fr = spd
+            self.speeds.rl = spd
+            self.speeds.rr = -spd
+        return self.speeds
 
-def set_motors(_handles, bearing, spd):
-    _speeds = MotorCommand()
-    if bearing == 0:
-        _speeds.fl = spd
-        _speeds.fr = spd
-        _speeds.rl = spd
-        _speeds.rr = spd
-    elif bearing == 90:
-        _speeds.fl = spd
-        _speeds.fr = -spd
-        _speeds.rl = -spd
-        _speeds.rr = spd
-    elif bearing == 180:
-        _speeds.fl = -spd
-        _speeds.fr = -spd
-        _speeds.rl = -spd
-        _speeds.rr = -spd
-    elif bearing == 270:
-        _speeds.fl = -spd
-        _speeds.fr = spd
-        _speeds.rl = spd
-        _speeds.rr = -spd
+    def calc_speeds(self, xSpd, ySpd, rotSpd):
+        WHEEL_SEPARATION_WIDTH = 3.16
+        WHEEL_SEPARATION_LENGTH = 4.56
+        WHEEL_DIAMETER = 0.1
+        revPerMeter = 1 / (WHEEL_DIAMETER * np.pi)
 
-    vrep.simxSetJointTargetVelocity(clientId, _handles.flM, _speeds.fl, vrep.simx_opmode_oneshot_wait)
-    vrep.simxSetJointTargetVelocity(clientId, _handles.frM, _speeds.fr, vrep.simx_opmode_oneshot_wait)
-    vrep.simxSetJointTargetVelocity(clientId, _handles.rlM, _speeds.rl, vrep.simx_opmode_oneshot_wait)
-    vrep.simxSetJointTargetVelocity(clientId, _handles.rrM, _speeds.rr, vrep.simx_opmode_oneshot_wait)
+        self.speeds.frontLeft = revPerMeter * (xSpd - ySpd - (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
+        self.speeds.frontRight = revPerMeter * (xSpd + ySpd + (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
+        self.speeds.rearLeft = revPerMeter * (xSpd + ySpd - (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
+        self.speeds.rearRight = revPerMeter * (xSpd - ySpd + (WHEEL_SEPARATION_WIDTH + WHEEL_SEPARATION_LENGTH)*rotSpd)
+        return self.speeds
 
+    def set_motors(self):
+        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.flM, self.speeds.fl, vrep.simx_opmode_oneshot_wait)
+        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.frM, self.speeds.fr, vrep.simx_opmode_oneshot_wait)
+        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rlM, self.speeds.rl, vrep.simx_opmode_oneshot_wait)
+        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rrM, self.speeds.rr, vrep.simx_opmode_oneshot_wait)
 
-def get_pos_orien(_handles):
-    _po = PosOrien()
-    err_code, [_po.x, _po.y, _po.z] = vrep.simxGetObjectPosition(clientId, _handles.body, -1,
-                                                                 vrep.simx_opmode_oneshot_wait)
-    err_code, [_po.alpha, _po.beta, _po.gamma] = vrep.simxGetObjectOrientation(clientId, _handles.body, -1,
-                                                                               vrep.simx_opmode_oneshot_wait)
-    return _po
+    def get_pos_orien(self):
+        _po = PosOrien()
+        err_code, [self.po.x, self.po.y, self.po.z] = vrep.simxGetObjectPosition(self.clientId, self.handles.body, -1, vrep.simx_opmode_oneshot_wait)
+        err_code, [self.po.alpha, self.po.beta, self.po.gamma] = vrep.simxGetObjectOrientation(self.clientId, self.handles.body, -1, vrep.simx_opmode_oneshot_wait)
+        return self.po
 
 
 if __name__ == "__main__":
-    clientId = connect()
+    bot = VrepBot()
 
-    if clientId != -1:
-        handles = get_handles()
-        robPO = get_pos_orien(handles)
-        print(robPO)
+    speed = 1
+    for bearing in (0, 90, 180, 270):
+        bot.calc_speeds_old(bearing, speed)
+        bot.set_motors()
+        time.sleep(4)
 
-        speed = 1
-        set_motors(handles, 0, speed)
-        time.sleep(4)
-        set_motors(handles, 90, speed)
-        time.sleep(4)
-        set_motors(handles, 180, speed)
-        time.sleep(4)
-        set_motors(handles, 270, speed)
-        time.sleep(4)
-        set_motors(handles, 0, 0)
+    bot.calc_speeds_old(0, 0)
+    bot.set_motors()
+
+    botPO = bot.get_pos_orien()
+    print(botPO)
+
+    # botPO = get_pos_orien(handles)
+    # print(botPO)
