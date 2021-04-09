@@ -31,7 +31,10 @@ class PosOrien:
         self.gamma = 0
 
     def __repr__(self):
-        return "X: %.3f,\t Y: %.3f,\t Z: %.3f" % (self.x, self.y, self.z)
+        return "Pos => X: %.3f,\t Y: %.3f,\t Z: %.3f\n" \
+               "Rot => A: %.3f,\t B: %.3f,\t G: %.3f" \
+               % (self.x, self.y, self.z, 
+                  self.alpha, self.beta, self.gamma)
 
 
 def connect(port=19999):
@@ -91,6 +94,7 @@ if __name__ == "__main__":
         robPO = PosOrien()
 
         err_code, [robPO.x, robPO.y, robPO.z] = vrep.simxGetObjectPosition(clientId, handles.body, -1, vrep.simx_opmode_oneshot_wait)
+        err_code, [robPO.alpha, robPO.beta, robPO.gamma] = vrep.simxGetObjectOrientation(clientId, handles.body, -1, vrep.simx_opmode_oneshot_wait)
         print(robPO)
 
         speed = 1
