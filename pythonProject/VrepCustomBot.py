@@ -120,11 +120,13 @@ class VrepBot:
             yVel = yVel / magLinVel
             print("Lim, factor: %.3f" % magLinVel)
 
+        fbVel = xVel * math.cos(self.po.gamma + math.pi/2) + yVel * math.sin(self.po.gamma + math.pi/2)
+        lrVel = yVel * math.cos(self.po.gamma + math.pi / 2) - xVel * math.sin(self.po.gamma + math.pi / 2)
 
-        self.speeds.fl = -1 * revPerMeter * (xVel - yVel - (ROT_SCALE_FACT) * angVel)
-        self.speeds.fr = -1 * revPerMeter * (xVel + yVel + (ROT_SCALE_FACT) * angVel)
-        self.speeds.rl = -1 * revPerMeter * (xVel + yVel - (ROT_SCALE_FACT) * angVel)
-        self.speeds.rr = -1 * revPerMeter * (xVel - yVel + (ROT_SCALE_FACT) * angVel)
+        self.speeds.fl = VEL_SCALE_FACT * (fbVel - lrVel - (ROT_SCALE_FACT) * angVel)
+        self.speeds.fr = VEL_SCALE_FACT * (fbVel + lrVel + (ROT_SCALE_FACT) * angVel)
+        self.speeds.rl = VEL_SCALE_FACT * (fbVel + lrVel - (ROT_SCALE_FACT) * angVel)
+        self.speeds.rr = VEL_SCALE_FACT * (fbVel - lrVel + (ROT_SCALE_FACT) * angVel)
 
         return self.speeds
 
