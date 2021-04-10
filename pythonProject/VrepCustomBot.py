@@ -1,3 +1,4 @@
+import math
 import vrep
 import numpy as np
 import sys
@@ -104,9 +105,21 @@ class VrepBot:
         return self.handles
 
     def calc_motors(self, xVel, yVel, angVel):
-        ROT_SCALE_FACT = 1
-        WHEEL_DIAMETER = 1 / np.pi
-        revPerMeter = 1 / (WHEEL_DIAMETER * np.pi)
+        ROT_SCALE_FACT = 0.3448  # experimentally scale to 1 = 1 rad/s
+        VEL_SCALE_FACT = -10  # expecimentally scale to 1 = 1 m/s
+        LIN_VEL_MAX = 1
+        ANG_VEL_MAX = 1
+
+        magAngVel = abs(angVel)
+        if magAngVel > ANG_VEL_MAX:
+            angVel = angVel / magAngVel
+
+        magLinVel = math.sqrt(pow(xVel, 2) + pow(yVel, 2))
+        if magLinVel > LIN_VEL_MAX:
+            xVel = xVel / magLinVel
+            yVel = yVel / magLinVel
+            print("Lim, factor: %.3f" % magLinVel)
+
 
         self.speeds.fl = -1 * revPerMeter * (xVel - yVel - (ROT_SCALE_FACT) * angVel)
         self.speeds.fr = -1 * revPerMeter * (xVel + yVel + (ROT_SCALE_FACT) * angVel)
@@ -115,16 +128,24 @@ class VrepBot:
 
         return self.speeds
 
-    def set_motors(self):
-        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.flM, self.speeds.fl, vrep.simx_opmode_oneshot_wait)
-        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.frM, self.speeds.fr, vrep.simx_opmode_oneshot_wait)
-        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rlM, self.speeds.rl, vrep.simx_opmode_oneshot_wait)
-        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rrM, self.speeds.rr, vrep.simx_opmode_oneshot_wait)
+    def set_motors(self, blocking=False):
+        """
+        bot control is improved with non-blocking commands (simultaneous motor adjustment)
+        this breaks at end of script - terminates before command received so add optional blocking param for stop()
+         - waits for duplicate command to be sent
+        """
+        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.flM, self.speeds.fl, vrep.simx_opmode_oneshot)
+        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.frM, self.speeds.fr, vrep.simx_opmode_oneshot)
+        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rlM, self.speeds.rl, vrep.simx_opmode_oneshot)
+        vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rrM, self.speeds.rr, vrep.simx_opmode_oneshot)
+        if blocking:
+            # send duplicate and wait for complete
+            vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rrM, self.speeds.rr, vrep.simx_opmode_oneshot_wait)
 
     def get_pos_orien(self):
         self.po.update(self.clientId, self.handles.body)
         return self.po
 
-    def stop(self):
+    def stop(self, force=True):
         self.speeds = MotorSpeeds()
-        self.set_motors()
+        self.set_motors(force)
