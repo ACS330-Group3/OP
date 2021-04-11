@@ -23,18 +23,34 @@ if __name__ == "__main__":
             print("%.20f" % (after-before))
         0.03001093864440917969
     """
-    pGain = 1
+    gains = PidGains()
+    gains.p = 5
+    gains.i = 0.25
+    gains.d = 10
+    bot.xPid.set_gains(copy.copy(gains))
+    bot.yPid.set_gains(copy.copy(gains))
+    bot.xPid.iLim = 0.5
+    bot.yPid.iLim = 0.5
+    gains.p = 20
+    gains.i = 0.5
+    gains.d = 0.5
+    bot.gammaPid.set_gains(copy.copy(gains))
+    bot.gammaPid.iLim = np.pi/2
+
     while True:
         tNow = time.time()
         if tNow - tPrev > tDuty:
             # before = time.time()  # add to find fastest possible tDuty
-            error = targetPO.update(bot.clientId, targetHandle) - bot.get_pos_orien()
+            # error = targetPO.update(bot.clientId, targetHandle) - bot.get_pos_orien()
+            bot.set_target(targetPO.update(bot.clientId, targetHandle))
             # print("Error:\n%s\n" % poError)  # add for Error printout
-            xVel = pGain * error.x
-            yVel = pGain * error.y
-            w = pGain * error.gamma
-            bot.calc_motors(xVel, yVel, w)
-            bot.set_motors()
+            # xVel = pGain * error.x
+            # yVel = pGain * error.y
+            # w = pGain * error.gamma
+            # bot.calc_motors(xVel, yVel, w)
+            # bot.set_motors()
+            bot.get_pos_orien()
+            bot.target_step()
             tPrev = tPrev + tDuty
             # after = time.time()  # add to find fastest possible tDuty
             # print("%.20f" % (after - before))  # add to find fastest possible tDuty

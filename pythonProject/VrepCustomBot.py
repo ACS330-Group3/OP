@@ -59,12 +59,44 @@ class PosOrien:
         return self
 
 
+class PidGains:
+    def __init__(self):
+        self.p = 0
+        self.i = 0
+        self.d = 0
+
+
+class Pid:
+    def __init__(self):
+        self._k = PidGains()
+        self._prevError = 0
+        self._iError = 0
+        self.iLim = 50
+
+    def set_gains(self, newK):
+        self._k = newK
+
+    def reset(self):
+        self._prevError = 0
+        self._iError = 0
+
+    def step(self, error):
+        dError = error - self._prevError
+        self._iError = self._iError + error
+        if abs(self._iError) > self.iLim:
+            self._iError = self.iLim * (self._iError / abs(self._iError))
+        return self._k.p * error + self._k.i * self._iError + self._k.d * dError
+
 class VrepBot:
     def __init__(self):
         self.clientId = -1
         self.handles = BotHandles()
         self.speeds = MotorSpeeds()
         self.po = PosOrien()
+        self.targetPO = PosOrien()
+        self.xPid = Pid()
+        self.yPid = Pid()
+        self.gammaPid = Pid()
 
     def setup(self):
         self.connect()
@@ -99,7 +131,7 @@ class VrepBot:
         ROT_SCALE_FACT = 0.3448  # experimentally scale to 1 = 1 rad/s
         VEL_SCALE_FACT = -10  # expecimentally scale to 1 = 1 m/s
         LIN_VEL_MAX = 1
-        ANG_VEL_MAX = 1
+        ANG_VEL_MAX = LIN_VEL_MAX/ROT_SCALE_FACT
 
         magAngVel = abs(angVel)
         if magAngVel > ANG_VEL_MAX:
@@ -107,12 +139,16 @@ class VrepBot:
 
         magLinVel = math.sqrt(pow(xVel, 2) + pow(yVel, 2))
         if magLinVel > LIN_VEL_MAX:
-            xVel = xVel / magLinVel
-            yVel = yVel / magLinVel
+            xVel = LIN_VEL_MAX * xVel / magLinVel
+            yVel = LIN_VEL_MAX * yVel / magLinVel
             # print("Lim, factor: %.3f" % magLinVel)
+
+        # print("x: %.3f\t y: %.3f\t g: %.3f" % (xVel, yVel, angVel))
 
         fbVel = +xVel * math.cos(self.po.gamma + math.pi/2) + yVel * math.sin(self.po.gamma + math.pi/2)
         lrVel = -xVel * math.sin(self.po.gamma + math.pi/2) + yVel * math.cos(self.po.gamma + math.pi/2)
+
+        # print("x: %.3f\t y: %.3f\t g: %.3f\n" % (fbVel, lrVel, angVel))
 
         self.speeds.fl = VEL_SCALE_FACT * (fbVel - lrVel - (ROT_SCALE_FACT) * angVel)
         self.speeds.fr = VEL_SCALE_FACT * (fbVel + lrVel + (ROT_SCALE_FACT) * angVel)
@@ -140,3 +176,19 @@ class VrepBot:
     def stop(self, force=True):
         self.speeds = MotorSpeeds()
         self.set_motors(force)
+
+    def set_target(self, posOrien):
+        self.targetPO = posOrien
+        # reset PID?
+
+    def target_step(self, updatePO=False):
+        if updatePO:
+            error = self.targetPO - self.get_pos_orien()
+        else:
+            error = self.targetPO - self.po
+        # print("Error:\n%s\n" % error)  # add for Error printout
+        xVel = self.xPid.step(error.x)
+        yVel = self.yPid.step(error.y)
+        gammaVel = self.gammaPid.step(error.gamma)
+        self.calc_motors(xVel, yVel, gammaVel)
+        self.set_motors()
