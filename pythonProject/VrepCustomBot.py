@@ -48,24 +48,15 @@ class PosOrien:
         _output.x = self.x - other.x
         _output.y = self.y - other.y
         _output.z = self.z - other.z
-        _output.alpha = self.alpha - other.alpha
-        _output.beta = self.beta - other.beta
-        _output.gamma = self.gamma - other.gamma
-        return _output
-
-    def __add__(self, other):
-        _output = PosOrien()
-        _output.x = self.x + other.x
-        _output.y = self.y + other.y
-        _output.z = self.z + other.z
-        _output.alpha = self.alpha + other.alpha
-        _output.beta = self.beta + other.beta
-        _output.gamma = self.gamma + other.gamma
+        _output.alpha = ((self.alpha - other.alpha) + np.pi) % (2 * np.pi) - np.pi
+        _output.beta = ((self.beta - other.beta) + np.pi) % (2 * np.pi) - np.pi
+        _output.gamma = ((self.gamma - other.gamma) + np.pi) % (2 * np.pi) - np.pi
         return _output
 
     def update(self, clientId, handle):
         err_code, [self.x, self.y, self.z] = vrep.simxGetObjectPosition(clientId, handle, -1, vrep.simx_opmode_oneshot_wait)
         err_code, [self.alpha, self.beta, self.gamma] = vrep.simxGetObjectOrientation(clientId, handle, -1, vrep.simx_opmode_oneshot_wait)
+        return self
 
 
 class VrepBot:
@@ -118,16 +109,15 @@ class VrepBot:
         if magLinVel > LIN_VEL_MAX:
             xVel = xVel / magLinVel
             yVel = yVel / magLinVel
-            print("Lim, factor: %.3f" % magLinVel)
+            # print("Lim, factor: %.3f" % magLinVel)
 
-        fbVel = xVel * math.cos(self.po.gamma + math.pi/2) + yVel * math.sin(self.po.gamma + math.pi/2)
-        lrVel = yVel * math.cos(self.po.gamma + math.pi / 2) - xVel * math.sin(self.po.gamma + math.pi / 2)
+        fbVel = +xVel * math.cos(self.po.gamma + math.pi/2) + yVel * math.sin(self.po.gamma + math.pi/2)
+        lrVel = -xVel * math.sin(self.po.gamma + math.pi/2) + yVel * math.cos(self.po.gamma + math.pi/2)
 
         self.speeds.fl = VEL_SCALE_FACT * (fbVel - lrVel - (ROT_SCALE_FACT) * angVel)
         self.speeds.fr = VEL_SCALE_FACT * (fbVel + lrVel + (ROT_SCALE_FACT) * angVel)
         self.speeds.rl = VEL_SCALE_FACT * (fbVel + lrVel - (ROT_SCALE_FACT) * angVel)
         self.speeds.rr = VEL_SCALE_FACT * (fbVel - lrVel + (ROT_SCALE_FACT) * angVel)
-
         return self.speeds
 
     def set_motors(self, blocking=False):
@@ -145,8 +135,7 @@ class VrepBot:
             vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rrM, self.speeds.rr, vrep.simx_opmode_oneshot_wait)
 
     def get_pos_orien(self):
-        self.po.update(self.clientId, self.handles.body)
-        return self.po
+        return self.po.update(self.clientId, self.handles.body)
 
     def stop(self, force=True):
         self.speeds = MotorSpeeds()
