@@ -13,7 +13,7 @@ class MotorSpeeds:
         self.rr = 0
 
     def __repr__(self):
-        return "Speeds =>\t fl: %d,\t fr: %d,\t rl: %d,\t rr: %d\n" \
+        return "Speeds =>\t fl: %.3f,\t fr: %.3f,\t rl: %.3f,\t rr: %.3f\n" \
                % (self.fl, self.fr, self.rl, self.rr)
 
 
@@ -87,6 +87,7 @@ class Pid:
             self._iError = self.iLim * (self._iError / abs(self._iError))
         return self._k.p * error + self._k.i * self._iError + self._k.d * dError
 
+
 class VrepBot:
     def __init__(self):
         self.clientId = -1
@@ -130,30 +131,24 @@ class VrepBot:
     def calc_motors(self, xVel, yVel, angVel):
         ROT_SCALE_FACT = 0.3448  # experimentally scale to 1 = 1 rad/s
         VEL_SCALE_FACT = -10  # expecimentally scale to 1 = 1 m/s
-        LIN_VEL_MAX = 1
-        ANG_VEL_MAX = LIN_VEL_MAX/ROT_SCALE_FACT
+        WHEEL_MAX_ROT = 4 * np.pi / 3
 
-        magAngVel = abs(angVel)
-        if magAngVel > ANG_VEL_MAX:
-            angVel = angVel / magAngVel
-
-        magLinVel = math.sqrt(pow(xVel, 2) + pow(yVel, 2))
-        if magLinVel > LIN_VEL_MAX:
-            xVel = LIN_VEL_MAX * xVel / magLinVel
-            yVel = LIN_VEL_MAX * yVel / magLinVel
-            # print("Lim, factor: %.3f" % magLinVel)
-
-        # print("x: %.3f\t y: %.3f\t g: %.3f" % (xVel, yVel, angVel))
+        # Convert to m/s & rad/s
+        xVel = xVel * VEL_SCALE_FACT
+        yVel = yVel * VEL_SCALE_FACT
+        angVel = angVel * VEL_SCALE_FACT * ROT_SCALE_FACT
 
         fbVel = +xVel * math.cos(self.po.gamma + math.pi/2) + yVel * math.sin(self.po.gamma + math.pi/2)
         lrVel = -xVel * math.sin(self.po.gamma + math.pi/2) + yVel * math.cos(self.po.gamma + math.pi/2)
 
-        # print("x: %.3f\t y: %.3f\t g: %.3f\n" % (fbVel, lrVel, angVel))
+        fbRot = limit(fbVel, WHEEL_MAX_ROT, -WHEEL_MAX_ROT)
+        lrRot = limit(lrVel, WHEEL_MAX_ROT, -WHEEL_MAX_ROT)
+        angRot = limit(angVel, WHEEL_MAX_ROT, -WHEEL_MAX_ROT)
 
-        self.speeds.fl = VEL_SCALE_FACT * (fbVel - lrVel - (ROT_SCALE_FACT) * angVel)
-        self.speeds.fr = VEL_SCALE_FACT * (fbVel + lrVel + (ROT_SCALE_FACT) * angVel)
-        self.speeds.rl = VEL_SCALE_FACT * (fbVel + lrVel - (ROT_SCALE_FACT) * angVel)
-        self.speeds.rr = VEL_SCALE_FACT * (fbVel - lrVel + (ROT_SCALE_FACT) * angVel)
+        self.speeds.fl = fbRot - lrRot - angRot
+        self.speeds.fr = fbRot + lrRot + angRot
+        self.speeds.rl = fbRot + lrRot - angRot
+        self.speeds.rr = fbRot - lrRot + angRot
         return self.speeds
 
     def set_motors(self, blocking=False):
@@ -186,9 +181,16 @@ class VrepBot:
             error = self.targetPO - self.get_pos_orien()
         else:
             error = self.targetPO - self.po
-        # print("Error:\n%s\n" % error)  # add for Error printout
         xVel = self.xPid.step(error.x)
         yVel = self.yPid.step(error.y)
         gammaVel = self.gammaPid.step(error.gamma)
         self.calc_motors(xVel, yVel, gammaVel)
         self.set_motors()
+
+
+def limit(x, uLim, lLim):
+    if x > uLim:
+        return uLim
+    if x < lLim:
+        return lLim
+    return x
