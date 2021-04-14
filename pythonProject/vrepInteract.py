@@ -33,8 +33,8 @@ if __name__ == "__main__":
         tNow = time.time()
         if tNow - tPrev > tDuty:
             bot.set_target(targetPO.update(bot.clientId, targetHandle))  # change for alternative target
+            bot.target_step(aggression=1.25)
             bot.get_pos_orien()
-            bot.target_step()
             tPrev = tPrev + tDuty
 
     bot.stop(True)  # force complete stop (blocking)

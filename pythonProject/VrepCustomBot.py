@@ -63,6 +63,19 @@ class PosOrien:
         _output.gamma = ((self.gamma + other.gamma) + np.pi) % (2 * np.pi) - np.pi
         return _output
 
+    def __mul__(self, fact):
+        _output = PosOrien()
+        _output.x = self.x * fact
+        _output.y = self.y * fact
+        _output.z = self.z * fact
+        _output.alpha = ((self.alpha * fact) + np.pi) % (2 * np.pi) - np.pi
+        _output.beta = ((self.beta * fact) + np.pi) % (2 * np.pi) - np.pi
+        _output.gamma = ((self.gamma * fact) + np.pi) % (2 * np.pi) - np.pi
+        return _output
+
+    def __div__(self, fact):
+        return self.__mul__(1/fact)
+
     def update(self, clientId, handle):
         err_code, [self.x, self.y, self.z] = vrep.simxGetObjectPosition(clientId, handle, -1, vrep.simx_opmode_oneshot_wait)
         err_code, [self.alpha, self.beta, self.gamma] = vrep.simxGetObjectOrientation(clientId, handle, -1, vrep.simx_opmode_oneshot_wait)
@@ -186,13 +199,14 @@ class VrepBot:
         self.targetPO = posOrien
         # reset PID?
 
-    def target_step(self, updatePO=False):
+    def target_step(self, aggression=1.0, updatePO=False):  # CAREFUL: aggression is equivalent to altering PID gains
         botchPoFix = PosOrien()
         botchPoFix.gamma = np.pi/2
         if updatePO:
             error = self.targetPO - self.get_pos_orien() - botchPoFix  # botch to fix model orientation issues
         else:
             error = self.targetPO - self.po - botchPoFix  # botch to fix model orientation issues
+        error = error * aggression
         xVel = self.xPid.step(error.x)
         yVel = self.yPid.step(error.y)
         gammaVel = self.gammaPid.step(error.gamma)
