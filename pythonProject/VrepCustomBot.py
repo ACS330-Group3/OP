@@ -1,4 +1,6 @@
 import sys
+import copy
+import time
 from VrepBotTools import *
 
 
@@ -21,6 +23,9 @@ class VrepBot:
         self.xPid = Pid()
         self.yPid = Pid()
         self.gammaPid = Pid()
+
+        self.tPrev = 0
+        self.tDuty = 0.1
 
     def connect(self, _port=19999):
         vrep.simxFinish(-1)
@@ -108,6 +113,19 @@ class VrepBot:
         posError, rotError = (self.pathTargetPO - self.po).Abs2D()
         # print("pE: %.3f, rE: %.3f" % (posError, rotError))
         pathComplete = False
-        if posError < 0.05 and rotError < 0.1:  # <5cm & <~5deg from path target
+        if posError < 0.01 and rotError < 0.025:  # <2.5cm & <~1.25deg from path target
             pathComplete = True
         return pathComplete
+
+    def path_goto(self, x, y, gamma):
+        waypoint = copy.deepcopy(self.pathTargetPO.update())
+        waypoint.x = x
+        waypoint.y = y
+        waypoint.gamma = gamma
+        self.pathTargetPO.set(waypoint)
+        self.tPrev = time.time()
+        atDest = False
+        while not atDest:
+            tNow = time.time()
+            if tNow - self.tPrev > self.tDuty:
+                atDest = self.path_step()

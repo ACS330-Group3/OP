@@ -1,5 +1,3 @@
-import time
-import copy
 from VrepCustomBot import *
 
 if __name__ == "__main__":
@@ -37,15 +35,9 @@ if __name__ == "__main__":
     i = 0
     repeats = 0
     while repeats < 2:
-        tNow = time.time()
-        if tNow - tPrev > tDuty:
-            if bot.path_step():
-                time.sleep(4)
-                tPrev = time.time()
-                bot.pathTargetPO.set(waypoints[i])
-                i = (i + 1) % 4
-                if i == 0:
-                    repeats = repeats + 1
-            tPrev = tPrev + tDuty
+        bot.path_goto(waypoints[i].x, waypoints[i].y, waypoints[i].gamma)
+        i = (i + 1) % 4
+        if i == 0:
+            repeats = repeats + 1
 
     bot.stop(True)  # force complete stop (blocking)
