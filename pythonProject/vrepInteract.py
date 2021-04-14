@@ -4,13 +4,11 @@ from VrepCustomBot import *
 
 if __name__ == "__main__":
     bot = VrepBot()
-    connected = bot.setup()
+    connected = bot.check_connected()
 
-    print("Bot position:\n%s" % bot.get_pos_orien())
-    err_code, targetHandle = vrep.simxGetObjectHandle(bot.clientId, "OmniTarget", vrep.simx_opmode_oneshot_wait)
-    targetPO = PosOrien()
-    targetPO.update(bot.clientId, targetHandle)
-    print("Target position:\n%s" % targetPO)
+    print("Bot position:\n%s" % bot.po.update())
+    bot.targetPO.update()
+    print("Target position:\n%s" % bot.targetPO)
     tPrev = time.time()
     tDuty = 0.1
 
@@ -29,12 +27,25 @@ if __name__ == "__main__":
     bot.gammaPid.set_gains(copy.copy(gains))
     bot.gammaPid.iLim = np.pi / 4
 
-    while True:
+    waypoint = copy.deepcopy(bot.pathTargetPO.update())
+    waypoints = list()
+    for x, y in zip((1, 1, -1, -1), (1, -1, -1, 1)):
+        waypoint.x = x
+        waypoint.y = y
+        waypoints.append(copy.deepcopy(waypoint))
+    print(waypoints)
+    i = 0
+    repeats = 0
+    while repeats < 2:
         tNow = time.time()
         if tNow - tPrev > tDuty:
-            bot.set_target(targetPO.update(bot.clientId, targetHandle))  # change for alternative target
-            bot.target_step(aggression=1.25)
-            bot.get_pos_orien()
+            if bot.path_step():
+                time.sleep(4)
+                tPrev = time.time()
+                bot.pathTargetPO.set(waypoints[i])
+                i = (i + 1) % 4
+                if i == 0:
+                    repeats = repeats + 1
             tPrev = tPrev + tDuty
 
     bot.stop(True)  # force complete stop (blocking)
