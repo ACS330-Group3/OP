@@ -7,7 +7,7 @@ if __name__ == "__main__":
     connected = bot.setup()
 
     print("Bot position:\n%s" % bot.get_pos_orien())
-    err_code, targetHandle = vrep.simxGetObjectHandle(bot.clientId, "Target", vrep.simx_opmode_oneshot_wait)
+    err_code, targetHandle = vrep.simxGetObjectHandle(bot.clientId, "OmniTarget", vrep.simx_opmode_oneshot_wait)
     targetPO = PosOrien()
     targetPO.update(bot.clientId, targetHandle)
     print("Target position:\n%s" % targetPO)

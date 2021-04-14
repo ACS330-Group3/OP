@@ -53,6 +53,16 @@ class PosOrien:
         _output.gamma = ((self.gamma - other.gamma) + np.pi) % (2 * np.pi) - np.pi
         return _output
 
+    def __add__(self, other):
+        _output = PosOrien()
+        _output.x = self.x + other.x
+        _output.y = self.y + other.y
+        _output.z = self.z + other.z
+        _output.alpha = ((self.alpha + other.alpha) + np.pi) % (2 * np.pi) - np.pi
+        _output.beta = ((self.beta + other.beta) + np.pi) % (2 * np.pi) - np.pi
+        _output.gamma = ((self.gamma + other.gamma) + np.pi) % (2 * np.pi) - np.pi
+        return _output
+
     def update(self, clientId, handle):
         err_code, [self.x, self.y, self.z] = vrep.simxGetObjectPosition(clientId, handle, -1, vrep.simx_opmode_oneshot_wait)
         err_code, [self.alpha, self.beta, self.gamma] = vrep.simxGetObjectOrientation(clientId, handle, -1, vrep.simx_opmode_oneshot_wait)
@@ -177,10 +187,12 @@ class VrepBot:
         # reset PID?
 
     def target_step(self, updatePO=False):
+        botchPoFix = PosOrien()
+        botchPoFix.gamma = np.pi/2
         if updatePO:
-            error = self.targetPO - self.get_pos_orien()
+            error = self.targetPO - self.get_pos_orien() - botchPoFix  # botch to fix model orientation issues
         else:
-            error = self.targetPO - self.po
+            error = self.targetPO - self.po - botchPoFix  # botch to fix model orientation issues
         xVel = self.xPid.step(error.x)
         yVel = self.yPid.step(error.y)
         gammaVel = self.gammaPid.step(error.gamma)
