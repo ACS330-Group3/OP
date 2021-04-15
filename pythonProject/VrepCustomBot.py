@@ -1,106 +1,31 @@
-import math
-import vrep
-import numpy as np
 import sys
-
-
-class MotorSpeeds:
-    # Class/Struct of motor speeds
-    def __init__(self):
-        self.fl = 0
-        self.fr = 0
-        self.rl = 0
-        self.rr = 0
-
-    def __repr__(self):
-        return "Speeds =>\t fl: %.3f,\t fr: %.3f,\t rl: %.3f,\t rr: %.3f\n" \
-               % (self.fl, self.fr, self.rl, self.rr)
-
-
-class BotHandles:
-    # Class/Struct of bot handles
-    def __init__(self):
-        self.body = 0
-        self.flM = 0
-        self.frM = 0
-        self.rlM = 0
-        self.rrM = 0
-
-
-class PosOrien:
-    # Position Orientation Class/Struct
-    def __init__(self):
-        self.x = 0
-        self.y = 0
-        self.z = 0
-        self.alpha = 0
-        self.beta = 0
-        self.gamma = 0
-
-    def __repr__(self):
-        return "Pos =>\t X: %.3f,\t Y: %.3f,\t Z: %.3f\n" \
-               "Rot =>\t A: %.3f,\t B: %.3f,\t G: %.3f\n" \
-               % (self.x, self.y, self.z,
-                  self.alpha, self.beta, self.gamma)
-
-    def __sub__(self, other):
-        _output = PosOrien()
-        _output.x = self.x - other.x
-        _output.y = self.y - other.y
-        _output.z = self.z - other.z
-        _output.alpha = ((self.alpha - other.alpha) + np.pi) % (2 * np.pi) - np.pi
-        _output.beta = ((self.beta - other.beta) + np.pi) % (2 * np.pi) - np.pi
-        _output.gamma = ((self.gamma - other.gamma) + np.pi) % (2 * np.pi) - np.pi
-        return _output
-
-    def update(self, clientId, handle):
-        err_code, [self.x, self.y, self.z] = vrep.simxGetObjectPosition(clientId, handle, -1, vrep.simx_opmode_oneshot_wait)
-        err_code, [self.alpha, self.beta, self.gamma] = vrep.simxGetObjectOrientation(clientId, handle, -1, vrep.simx_opmode_oneshot_wait)
-        return self
-
-
-class PidGains:
-    def __init__(self):
-        self.p = 0
-        self.i = 0
-        self.d = 0
-
-
-class Pid:
-    def __init__(self):
-        self._k = PidGains()
-        self._prevError = 0
-        self._iError = 0
-        self.iLim = 50
-
-    def set_gains(self, newK):
-        self._k = newK
-
-    def reset(self):
-        self._prevError = 0
-        self._iError = 0
-
-    def step(self, error):
-        dError = error - self._prevError
-        self._iError = self._iError + error
-        if abs(self._iError) > self.iLim:
-            self._iError = self.iLim * (self._iError / abs(self._iError))
-        return self._k.p * error + self._k.i * self._iError + self._k.d * dError
+import copy
+import time
+from VrepBotTools import *
 
 
 class VrepBot:
     def __init__(self):
         self.clientId = -1
+        self.connect()
+
         self.handles = BotHandles()
+        self.get_handles()
+
+        self.po = PosOrien(self.clientId, self.handles.body)
+        self.targetPO = PosOrien(self.clientId, self.handles.botTarget)
+        self.pathTargetPO = PosOrien(self.clientId, self.handles.pathTarget)
+        self.po.update()
+        self.targetPO.update()
+        self.pathTargetPO.update()
+
         self.speeds = MotorSpeeds()
-        self.po = PosOrien()
-        self.targetPO = PosOrien()
         self.xPid = Pid()
         self.yPid = Pid()
         self.gammaPid = Pid()
 
-    def setup(self):
-        self.connect()
+        self.tPrev = 0
+        self.tDuty = 0.1
 
     def connect(self, _port=19999):
         vrep.simxFinish(-1)
@@ -116,8 +41,9 @@ class VrepBot:
                 sys.exit()
             print("Continuing")
 
-        self.get_handles()
-        self.get_pos_orien()
+        return self.clientId != -1
+
+    def check_connected(self):
         return self.clientId != -1
 
     def get_handles(self):
@@ -126,6 +52,8 @@ class VrepBot:
         err_code, self.handles.frM = vrep.simxGetObjectHandle(self.clientId, "rollingJoint_fr", vrep.simx_opmode_oneshot_wait)
         err_code, self.handles.rlM = vrep.simxGetObjectHandle(self.clientId, "rollingJoint_rl", vrep.simx_opmode_oneshot_wait)
         err_code, self.handles.rrM = vrep.simxGetObjectHandle(self.clientId, "rollingJoint_rr", vrep.simx_opmode_oneshot_wait)
+        err_code, self.handles.botTarget = vrep.simxGetObjectHandle(self.clientId, "OmniTarget", vrep.simx_opmode_oneshot_wait)
+        err_code, self.handles.pathTarget = vrep.simxGetObjectHandle(self.clientId, "PathTarget", vrep.simx_opmode_oneshot_wait)
         return self.handles
 
     def calc_motors(self, xVel, yVel, angVel):
@@ -138,8 +66,8 @@ class VrepBot:
         yVel = yVel * VEL_SCALE_FACT
         angVel = angVel * VEL_SCALE_FACT * ROT_SCALE_FACT
 
-        fbVel = +xVel * math.cos(self.po.gamma + math.pi/2) + yVel * math.sin(self.po.gamma + math.pi/2)
-        lrVel = -xVel * math.sin(self.po.gamma + math.pi/2) + yVel * math.cos(self.po.gamma + math.pi/2)
+        fbVel = +xVel * np.cos(self.po.gamma) + yVel * np.sin(self.po.gamma)
+        lrVel = -xVel * np.sin(self.po.gamma) + yVel * np.cos(self.po.gamma)
 
         fbRot = limit(fbVel, WHEEL_MAX_ROT, -WHEEL_MAX_ROT)
         lrRot = limit(lrVel, WHEEL_MAX_ROT, -WHEEL_MAX_ROT)
@@ -165,20 +93,13 @@ class VrepBot:
             # send duplicate and wait for complete
             vrep.simxSetJointTargetVelocity(self.clientId, self.handles.rrM, self.speeds.rr, vrep.simx_opmode_oneshot_wait)
 
-    def get_pos_orien(self):
-        return self.po.update(self.clientId, self.handles.body)
-
     def stop(self, force=True):
         self.speeds = MotorSpeeds()
         self.set_motors(force)
 
-    def set_target(self, posOrien):
-        self.targetPO = posOrien
-        # reset PID?
-
     def target_step(self, updatePO=False):
         if updatePO:
-            error = self.targetPO - self.get_pos_orien()
+            error = self.targetPO.update() - self.po.update()
         else:
             error = self.targetPO - self.po
         xVel = self.xPid.step(error.x)
@@ -187,10 +108,24 @@ class VrepBot:
         self.calc_motors(xVel, yVel, gammaVel)
         self.set_motors()
 
+    def path_step(self):
+        self.target_step(updatePO=True)
+        posError, rotError = (self.pathTargetPO - self.po).Abs2D()
+        # print("pE: %.3f, rE: %.3f" % (posError, rotError))
+        pathComplete = False
+        if posError < 0.01 and rotError < 0.025:  # <2.5cm & <~1.25deg from path target
+            pathComplete = True
+        return pathComplete
 
-def limit(x, uLim, lLim):
-    if x > uLim:
-        return uLim
-    if x < lLim:
-        return lLim
-    return x
+    def path_goto(self, x, y, gamma):
+        waypoint = copy.deepcopy(self.pathTargetPO.update())
+        waypoint.x = x
+        waypoint.y = y
+        waypoint.gamma = gamma
+        self.pathTargetPO.set(waypoint)
+        self.tPrev = time.time()
+        atDest = False
+        while not atDest:
+            tNow = time.time()
+            if tNow - self.tPrev > self.tDuty:
+                atDest = self.path_step()
