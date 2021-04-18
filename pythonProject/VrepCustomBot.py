@@ -95,7 +95,9 @@ class VrepBot:
 
     def stop(self, force=True):
         self.speeds = MotorSpeeds()
-        self.set_motors(force)
+        self.set_motors()  # ensures commands are always sent together
+        if force:
+            self.set_motors(force)  # re-send and wait for completion if force is required
 
     def target_step(self, updatePO=False):
         if updatePO:
@@ -129,3 +131,4 @@ class VrepBot:
             tNow = time.time()
             if tNow - self.tPrev > self.tDuty:
                 atDest = self.path_step()
+        self.stop(True)
