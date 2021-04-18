@@ -1,0 +1,5 @@
+int8 x_coordinate #robot coordinates
+int8 y_coordinate
+int8 z_coordinate
+---
+int8 location
